@@ -19,7 +19,7 @@ function s.initial_effect(c)
 	e1:SetTarget(s.settg)
 	e1:SetOperation(s.setop)
 	c:RegisterEffect(e1)
-	--Sestroy
+	--Destroy
 	local e2=Effect.CreateEffect(c)
 	e2:SetDescription(aux.Stringid(id,1))
 	e2:SetCategory(CATEGORY_DESTROY+CATEGORY_DAMAGE)
@@ -34,6 +34,22 @@ function s.initial_effect(c)
 	e3:SetCode(EFFECT_ATTACK_ALL)
 	e3:SetValue(1)
 	c:RegisterEffect(e3)
+	--Spsummon
+	local e4=Effect.CreateEffect(c)
+	e4:SetDescription(aux.Stringid(id,2))
+	e4:SetCategory(CATEGORY_SPECIAL_SUMMON)
+	e4:SetType(EFFECT_TYPE_QUICK_O)
+	e4:SetCode(EVENT_CHAINING)
+	e4:SetRange(LOCATION_MZONE)
+	e4:SetCountLimit(1,id+1)
+	e4:SetCondition(s.spcon)
+	e4:SetTarget(s.sptg)
+	e4:SetOperation(s.spop)
+	c:RegisterEffect(e4)
+	local e5=e4:Clone()
+	e5:SetCode(EVENT_ATTACK_ANNOUNCE)
+	e5:SetCondition(s.spcon2)
+	c:RegisterEffect(e5)
 end
 --Change name
 function s.codecon(c)
@@ -85,5 +101,48 @@ function s.desop(e,tp,eg,ep,ev,re,r,rp)
 		if Duel.Destroy(tc,REASON_EFFECT)~=0 then
 			Duel.Damage(1-tp,atk,REASON_EFFECT)
 		end
+	end
+end
+--Spsummon
+function s.spcon(e,tp,eg,ep,ev,re,r,rp)
+	return rp==1-tp
+end
+function s.spcon2(e,tp,eg,ep,ev,re,r,rp)
+	return Duel.GetAttacker():IsControler(1-tp)
+end
+function s.scfilter1(c,e,tp,mc)
+	local mg=Group.FromCards(c,mc)
+	return c:IsType(TYPE_TUNER) and c:IsCanBeSpecialSummoned(e,0,tp,false,false)
+		and Duel.IsExistingMatchingCard(s.scfilter2,tp,LOCATION_EXTRA,0,1,nil,mg)
+end
+function s.scfilter2(c,mg)
+	return c:IsAttribute(ATTRIBUTE_DARK) and c:IsRace(RACE_DRAGON) and c:IsSynchroSummonable(mg)
+end
+function s.tunerfilter(c)
+	return c:IsType(TYPE_TUNER)
+end
+function s.sctg(e,tp,eg,ep,ev,re,r,rp,chk)
+	if chk==0 then return Duel.IsPlayerCanSpecialSummonCount(tp,2)
+		and Duel.GetLocationCount(tp,LOCATION_MZONE)>0
+		and Duel.IsExistingMatchingCard(s.scfilter1,tp,LOCATION_GRAVE,0,1,nil,e,tp,e:GetHandler()) end
+	Duel.SetOperationInfo(0,CATEGORY_SPECIAL_SUMMON,nil,1,tp,LOCATION_EXTRA)
+end
+function s.scop(e,tp,eg,ep,ev,re,r,rp)
+	if Duel.GetLocationCount(tp,LOCATION_MZONE)<=0 then return end
+	local c=e:GetHandler()
+	local g=Duel.SelectMatchingCard(tp,s.scfilter1,tp,LOCATION_GRAVE,0,1,1,nil,e,tp,c)
+	local tc=g:GetFirst()
+	if  tc then 
+		Duel.SpecialSummon(tc,0,tp,tp,false,false,POS_FACEUP)
+	end
+	if not c:IsRelateToEffect(e) then return end
+	Duel.AdjustAll()
+	local mg=Duel.GetMatchingGroup(s.tunerfilter,tp,LOCATION_MZONE,0,nil)
+	mg:AddCard(c)
+	local g=Duel.GetMatchingGroup(Card.IsSynchroSummonable,tp,LOCATION_EXTRA,0,nil,nil,mg)
+	if g:GetCount()>0 then
+		Duel.Hint(HINT_SELECTMSG,tp,HINTMSG_SPSUMMON)
+		local sg=g:Select(tp,1,1,nil)
+		Duel.SynchroSummon(tp,sg:GetFirst(),nil,mg)
 	end
 end
